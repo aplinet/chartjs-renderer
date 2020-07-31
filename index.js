@@ -1,6 +1,6 @@
 const { CanvasRenderService } = require("chartjs-node-canvas");
 const yargs = require("yargs");
-
+const maxDepth = 300;
 const argv = yargs
   .option("width", {
     alias: "w",
@@ -32,8 +32,7 @@ const argv = yargs
     description: "Chart options",
     type: "json",
   })
-  .help()
-  .argv;
+  .help().argv;
 
 const fs = require("fs");
 if (argv.data) {
@@ -45,20 +44,16 @@ if (argv.options) {
 if (!argv.output) {
   argv.output = null;
 }
-const defaultConfigurations = {
-  type: "bar",
-  data: {},
-  options: {},
-};
+
 const configuration = {
-  type: "bar",
+  type: argv.type ? argv.type : "bar",
   data: argv.data ? argv.data : {},
   options: argv.options ? argv.options : {},
 };
+configuration.options = evalCallbacks(configuration.options, 0);
 const width = argv.width ? argv.width : 400; //px
 const height = argv.height ? argv.height : 400; //px
 const canvasRenderService = new CanvasRenderService(width, height, (ChartJS) => {});
-
 (async () => {
   if (argv.output) {
     await new Promise((resolve) => {
@@ -80,3 +75,21 @@ const canvasRenderService = new CanvasRenderService(width, height, (ChartJS) => 
 
   process.exit(0);
 })();
+
+function evalCallbacks(obj, depth) {
+  if (depth === maxDepth) {
+    throw "Max iteration depth reached (" + maxDepth + "). Aborting.";
+  }
+  for (var property in obj) {
+    if (obj.hasOwnProperty(property)) {
+      if (typeof obj[property] == "object") {
+        obj[property] = evalCallbacks(obj[property], depth + 1);
+      } else {
+        if (property === "callback" && typeof obj[property] === "string") {
+          obj[property] = eval(obj[property]);
+        }
+      }
+    }
+  }
+  return obj;
+}
